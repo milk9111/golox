@@ -1,27 +1,28 @@
 package scanner
 
 import (
-	"lox/error"
+	"golox/loxerror"
+	"golox/references"
 	"strconv"
 )
 
-var keywords = map[string]TokenType{
-	"and":    And,
-	"class":  Class,
-	"else":   Else,
-	"false":  False,
-	"for":    For,
-	"fun":    Fun,
-	"if":     If,
-	"nil":    Nil,
-	"or":     Or,
-	"print":  Print,
-	"return": Return,
-	"super":  Super,
-	"this":   This,
-	"true":   True,
-	"var":    Var,
-	"while":  While,
+var keywords = map[string]references.TokenType{
+	"and":    references.And,
+	"class":  references.Class,
+	"else":   references.Else,
+	"false":  references.False,
+	"for":    references.For,
+	"fun":    references.Fun,
+	"if":     references.If,
+	"nil":    references.Nil,
+	"or":     references.Or,
+	"print":  references.Print,
+	"return": references.Return,
+	"super":  references.Super,
+	"this":   references.This,
+	"true":   references.True,
+	"var":    references.Var,
+	"while":  references.While,
 }
 
 type Scanner struct {
@@ -47,7 +48,7 @@ func (scanner *Scanner) ScanTokens() []*Token {
 		scanner.scanToken()
 	}
 
-	scanner.Tokens = append(scanner.Tokens, NewToken(EOF, "", nil, scanner.Line))
+	scanner.Tokens = append(scanner.Tokens, NewToken(references.EOF, "", nil, scanner.Line))
 	return scanner.Tokens
 }
 
@@ -59,60 +60,60 @@ func (scanner *Scanner) scanToken() {
 	c := scanner.advance()
 	switch c {
 	case '(':
-		scanner.addToken(LeftParen)
+		scanner.addToken(references.LeftParen)
 		break
 	case ')':
-		scanner.addToken(RightParen)
+		scanner.addToken(references.RightParen)
 		break
 	case '{':
-		scanner.addToken(LeftBrace)
+		scanner.addToken(references.LeftBrace)
 		break
 	case '}':
-		scanner.addToken(RightBrace)
+		scanner.addToken(references.RightBrace)
 		break
 	case ',':
-		scanner.addToken(Comma)
+		scanner.addToken(references.Comma)
 		break
 	case '.':
-		scanner.addToken(Dot)
+		scanner.addToken(references.Dot)
 		break
 	case '-':
-		scanner.addToken(Minus)
+		scanner.addToken(references.Minus)
 		break
 	case '+':
-		scanner.addToken(Plus)
+		scanner.addToken(references.Plus)
 		break
 	case ';':
-		scanner.addToken(Semicolon)
+		scanner.addToken(references.Semicolon)
 		break
 	case '*':
-		scanner.addToken(Star)
+		scanner.addToken(references.Star)
 		break
 	case '!':
-		token := Bang
+		token := references.Bang
 		if scanner.match('=') {
-			token = BangEqual
+			token = references.BangEqual
 		}
 		scanner.addToken(token)
 		break
 	case '=':
-		token := Equal
+		token := references.Equal
 		if scanner.match('=') {
-			token = EqualEqual
+			token = references.EqualEqual
 		}
 		scanner.addToken(token)
 		break
 	case '<':
-		token := Less
+		token := references.Less
 		if scanner.match('=') {
-			token = LessEqual
+			token = references.LessEqual
 		}
 		scanner.addToken(token)
 		break
 	case '>':
-		token := Greater
+		token := references.Greater
 		if scanner.match('=') {
-			token = GreaterEqual
+			token = references.GreaterEqual
 		}
 		scanner.addToken(token)
 		break
@@ -122,7 +123,7 @@ func (scanner *Scanner) scanToken() {
 				scanner.advance()
 			}
 		} else {
-			scanner.addToken(Slash)
+			scanner.addToken(references.Slash)
 		}
 		break
 	case ' ':
@@ -143,7 +144,7 @@ func (scanner *Scanner) scanToken() {
 		} else if isAlpha(c) {
 			scanner.identifier()
 		} else {
-			error.Error(scanner.Line, "Unexpected character.")
+			loxerror.Error(scanner.Line, "Unexpected character.")
 		}
 
 		break
@@ -155,11 +156,11 @@ func (scanner *Scanner) advance() rune {
 	return rune(scanner.Source[scanner.Current-1])
 }
 
-func (scanner *Scanner) addToken(t TokenType) {
+func (scanner *Scanner) addToken(t references.TokenType) {
 	scanner.addTokenLiteral(t, nil)
 }
 
-func (scanner *Scanner) addTokenLiteral(t TokenType, literal interface{}) {
+func (scanner *Scanner) addTokenLiteral(t references.TokenType, literal interface{}) {
 	text := scanner.Source[scanner.Start:scanner.Current]
 	scanner.Tokens = append(scanner.Tokens, NewToken(t, text, literal, scanner.Line))
 }
@@ -192,14 +193,14 @@ func (scanner *Scanner) parseString() {
 	}
 
 	if scanner.isAtEnd() {
-		error.Error(scanner.Line, "Unterminated string.")
+		loxerror.Error(scanner.Line, "Unterminated string.")
 		return
 	}
 
 	scanner.advance()
 
 	value := string(scanner.Source[scanner.Start+1 : scanner.Current-1])
-	scanner.addTokenLiteral(String, value)
+	scanner.addTokenLiteral(references.String, value)
 }
 
 func (scanner *Scanner) number() {
@@ -217,11 +218,11 @@ func (scanner *Scanner) number() {
 
 	number, err := strconv.ParseFloat(scanner.Source[scanner.Start:scanner.Current], 64)
 	if err != nil {
-		error.Error(scanner.Line, "Invalid number.")
+		loxerror.Error(scanner.Line, "Invalid number.")
 		return
 	}
 
-	scanner.addTokenLiteral(Number, number)
+	scanner.addTokenLiteral(references.Number, number)
 }
 
 func (scanner *Scanner) peekNext() rune {
@@ -241,7 +242,7 @@ func (scanner *Scanner) identifier() {
 
 	t, ok := keywords[text]
 	if !ok {
-		t = Identifier
+		t = references.Identifier
 	}
 
 	scanner.addToken(t)

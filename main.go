@@ -3,16 +3,19 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"golox/loxerror"
+	"golox/scanner"
+	"golox/syntax"
 	"io/ioutil"
-	"lox/error"
-	"lox/scanner"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
+var interpreter = syntax.NewInterpreter()
+
 func main() {
 	length := len(os.Args)
-	fmt.Println(os.Args)
 	if length > 2 {
 		fmt.Printf("Usage: golox [script]")
 		os.Exit(64)
@@ -25,17 +28,24 @@ func main() {
 
 func runFile(path string) {
 	if !fileExists(path) {
-		panic(fmt.Errorf("%s does not exist", path))
+		fmt.Printf("%s does not exist\n", path)
+		os.Exit(64)
+	}
+
+	if _, filename := filepath.Split(path); !strings.HasSuffix(filename, ".lox") {
+		fmt.Println("Not a Lox file")
+		os.Exit(64)
 	}
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		panic(err)
+		fmt.Println(err.Error())
+		os.Exit(64)
 	}
 
 	run(string(data))
 
-	if error.HadError() {
+	if loxerror.HadError() {
 		os.Exit(65)
 	}
 }
@@ -48,7 +58,8 @@ func runPrompt() {
 
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
+			os.Exit(64)
 		}
 
 		line = strings.Replace(line, "\n", "", -1)
@@ -69,11 +80,16 @@ func run(source string) {
 	scanner := scanner.NewScanner(source)
 	tokens := scanner.ScanTokens()
 
-	for _, token := range tokens {
-		if token == nil {
-			continue
-		}
+	parser := syntax.NewAstParser(tokens)
+	statements := parser.Parse()
 
-		fmt.Println(token.String())
+	if loxerror.HadError() {
+		os.Exit(65)
+	}
+
+	interpreter.Interpret(statements)
+
+	if loxerror.HadRuntimeError() {
+		os.Exit(70)
 	}
 }

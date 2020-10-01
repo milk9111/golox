@@ -2,16 +2,17 @@ package scanner
 
 import (
 	"fmt"
+	"golox/references"
 )
 
 type Token struct {
-	Type    TokenType
+	Type    references.TokenType
 	Lexeme  string
 	Literal interface{}
 	Line    int
 }
 
-func NewToken(t TokenType, lexeme string, literal interface{}, line int) *Token {
+func NewToken(t references.TokenType, lexeme string, literal interface{}, line int) *Token {
 	return &Token{
 		Type:    t,
 		Lexeme:  lexeme,

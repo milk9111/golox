@@ -1,4 +1,4 @@
-module lox
+module golox
 
 go 1.13
 
