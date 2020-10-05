@@ -6,14 +6,18 @@ import (
 )
 
 type Environment struct {
-	enclosing *Environment
-	values    map[string]interface{}
+	enclosing  *Environment
+	exit       bool
+	continuing bool
+	values     map[string]interface{}
 }
 
 func NewEnvironment(enclosing *Environment) *Environment {
 	return &Environment{
-		enclosing: enclosing,
-		values:    make(map[string]interface{}),
+		enclosing:  enclosing,
+		exit:       false,
+		continuing: false,
+		values:     make(map[string]interface{}),
 	}
 }
 

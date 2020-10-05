@@ -5,6 +5,7 @@
 *.so
 *.dylib
 lox
+.vscode/
 
 # Test binary, built with `go test -c`
 *.test

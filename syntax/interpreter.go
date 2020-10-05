@@ -8,12 +8,14 @@ import (
 )
 
 type Interpreter struct {
-	env *Environment
+	env  *Environment
+	prev *Environment
 }
 
 func NewInterpreter() *Interpreter {
 	return &Interpreter{
-		env: NewEnvironment(nil),
+		env:  NewEnvironment(nil),
+		prev: nil,
 	}
 }
 
@@ -32,7 +34,61 @@ func (interpreter *Interpreter) execute(stmt Stmt) {
 	stmt.accept(interpreter)
 }
 
-func (interpreter *Interpreter) visitIftStmt(stmt *Ift) interface{} {
+func (interpreter *Interpreter) visitContinueCmdStmt(continueCmd *ContinueCmd) interface{} {
+	env := interpreter.env
+	for depth := continueCmd.envDepth; depth > 0; depth-- {
+		env.continuing = true
+		env = env.enclosing
+	}
+
+	return nil
+}
+
+func (interpreter *Interpreter) visitBreakCmdStmt(breakCmd *BreakCmd) interface{} {
+	env := interpreter.env
+	for depth := breakCmd.envDepth; depth > 0; depth-- {
+		env.exit = true
+		env = env.enclosing
+	}
+
+	return nil
+}
+
+func (interpreter *Interpreter) visitWhileLoopStmt(whileLoop *WhileLoop) interface{} {
+	for isTruthy(interpreter.evaluate(whileLoop.condition)) {
+		interpreter.execute(whileLoop.body)
+
+		if interpreter.env.continuing {
+			interpreter.env = interpreter.prev
+			continue
+		}
+
+		if interpreter.env.exit {
+			interpreter.env = interpreter.prev
+			break
+		}
+	}
+
+	return nil
+}
+
+func (interpreter *Interpreter) visitLogicalExpr(expr *Logical) interface{} {
+	left := interpreter.evaluate(expr.left)
+
+	if expr.operator.Type == references.Or {
+		if isTruthy(left) {
+			return left
+		}
+	} else {
+		if !isTruthy(left) {
+			return left
+		}
+	}
+
+	return interpreter.evaluate(expr.right)
+}
+
+func (interpreter *Interpreter) visitIfCmdStmt(stmt *IfCmd) interface{} {
 	if isTruthy(interpreter.evaluate(stmt.condition)) {
 		interpreter.execute(stmt.thenBranch)
 	} else if stmt.elseBranch != nil {
@@ -43,16 +99,25 @@ func (interpreter *Interpreter) visitIftStmt(stmt *Ift) interface{} {
 }
 
 func (interpreter *Interpreter) visitBlockStmt(stmt *Block) interface{} {
-	interpreter.executeBlock(stmt.statements, NewEnvironment(interpreter.env))
+	interpreter.executeBlock(stmt.statements, NewEnvironment(interpreter.env), stmt)
 	return nil
 }
 
-func (interpreter *Interpreter) executeBlock(statements []Stmt, env *Environment) {
+func (interpreter *Interpreter) executeBlock(statements []Stmt, env *Environment, block *Block) {
 	previous := interpreter.env
 
 	interpreter.env = env
 	for _, statement := range statements {
 		interpreter.execute(statement)
+		if interpreter.env.continuing && block.isLoopIncrementer {
+			interpreter.env.continuing = false
+			continue
+		}
+
+		if interpreter.env.exit || interpreter.env.continuing {
+			interpreter.prev = previous
+			return
+		}
 	}
 
 	interpreter.env = previous
@@ -64,7 +129,7 @@ func (interpreter *Interpreter) visitAssignExpr(expr *Assign) interface{} {
 	return value
 }
 
-func (interpreter *Interpreter) visitVartStmt(stmt *Vart) interface{} {
+func (interpreter *Interpreter) visitVarCmdStmt(stmt *VarCmd) interface{} {
 	var value interface{}
 	if stmt.initializer != nil {
 		value = interpreter.evaluate(stmt.initializer)
@@ -168,7 +233,6 @@ func (interpreter *Interpreter) evaluate(expr Expr) interface{} {
 }
 
 func checkNumberOperand(operator *scanner.Token, operands ...interface{}) {
-
 	good := true
 	for _, val := range operands {
 		if _, ok := val.(float64); !ok {

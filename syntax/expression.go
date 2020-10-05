@@ -2,8 +2,9 @@ package syntax
 
 import "golox/scanner"
 
-type Expr interface{
+type Expr interface {
 	accept(visitor ExprVisitor) interface{}
+	String() string
 }
 
 type ExprVisitor interface {
@@ -17,13 +18,13 @@ type ExprVisitor interface {
 }
 
 type Assign struct {
-	name *scanner.Token
+	name  *scanner.Token
 	value Expr
 }
 
 func NewAssign(name *scanner.Token, value Expr) Expr {
 	return &Assign{
-		name: name,
+		name:  name,
 		value: value,
 	}
 }
@@ -32,18 +33,21 @@ func (assign *Assign) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitAssignExpr(assign)
 }
 
+func (assign *Assign) String() string {
+	return "Assign"
+}
 
 type Binary struct {
-	left Expr
+	left     Expr
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewBinary(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Binary{
-		left: left,
+		left:     left,
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -51,6 +55,9 @@ func (binary *Binary) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitBinaryExpr(binary)
 }
 
+func (binary *Binary) String() string {
+	return "Binary"
+}
 
 type Grouping struct {
 	expression Expr
@@ -66,6 +73,9 @@ func (grouping *Grouping) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitGroupingExpr(grouping)
 }
 
+func (grouping *Grouping) String() string {
+	return "Grouping"
+}
 
 type Literal struct {
 	value interface{}
@@ -81,18 +91,21 @@ func (literal *Literal) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitLiteralExpr(literal)
 }
 
+func (literal *Literal) String() string {
+	return "Literal"
+}
 
 type Logical struct {
-	left Expr
+	left     Expr
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewLogical(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Logical{
-		left: left,
+		left:     left,
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -100,16 +113,19 @@ func (logical *Logical) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitLogicalExpr(logical)
 }
 
+func (logical *Logical) String() string {
+	return "Logical"
+}
 
 type Unary struct {
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewUnary(operator *scanner.Token, right Expr) Expr {
 	return &Unary{
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -117,6 +133,9 @@ func (unary *Unary) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitUnaryExpr(unary)
 }
 
+func (unary *Unary) String() string {
+	return "Unary"
+}
 
 type Variable struct {
 	name *scanner.Token
@@ -132,4 +151,6 @@ func (variable *Variable) accept(visitor ExprVisitor) interface{} {
 	return visitor.visitVariableExpr(variable)
 }
 
-
+func (variable *Variable) String() string {
+	return "Variable"
+}

@@ -51,10 +51,14 @@ func (parser *AstParser) varDeclaration() Stmt {
 	}
 
 	parser.consume(references.Semicolon, "Expect ';' after variable declaration.")
-	return NewVart(name, initializer)
+	return NewVarCmd(name, initializer)
 }
 
 func (parser *AstParser) statement() Stmt {
+	if parser.match(references.For) {
+		return parser.forStatement()
+	}
+
 	if parser.match(references.If) {
 		return parser.ifStatement()
 	}
@@ -63,11 +67,97 @@ func (parser *AstParser) statement() Stmt {
 		return parser.printStatement()
 	}
 
+	if parser.match(references.While) {
+		return parser.whileStatement()
+	}
+
 	if parser.match(references.LeftBrace) {
-		return NewBlock(parser.block())
+		return NewBlock(parser.block(), false)
+	}
+
+	if parser.match(references.Break) {
+		return parser.breakStatement()
+	}
+
+	if parser.match(references.Continue) {
+		return parser.continueStatement()
 	}
 
 	return parser.expressionStatement()
+}
+
+func (parser *AstParser) continueStatement() Stmt {
+	depth, found := parser.calculateDepth()
+
+	if !found {
+		throwError(parser.previous(), "Expect 'continue' in a loop.")
+	}
+
+	parser.consume(references.Semicolon, "Expect ';' after continue.")
+	return NewContinueCmd(depth)
+}
+
+func (parser *AstParser) breakStatement() Stmt {
+	depth, found := parser.calculateDepth()
+
+	if !found {
+		throwError(parser.previous(), "Expect 'break' in a loop.")
+	}
+
+	parser.consume(references.Semicolon, "Expect ';' after break.")
+	return NewBreakCmd(depth)
+}
+
+func (parser *AstParser) forStatement() Stmt {
+	parser.consume(references.LeftParen, "Expect '(' after for.")
+
+	var initializer Stmt
+	if parser.match(references.Semicolon) {
+		initializer = nil
+	} else if parser.match(references.Var) {
+		initializer = parser.varDeclaration()
+	} else {
+		initializer = parser.expressionStatement()
+	}
+
+	var conditional Expr
+	if !parser.check(references.Semicolon) {
+		conditional = parser.expression()
+	}
+	parser.consume(references.Semicolon, "Expect ';' after for loop condition.")
+
+	var increment Expr
+	if !parser.check(references.RightParen) {
+		increment = parser.expression()
+	}
+	parser.consume(references.RightParen, "Expect ')' after for loop clauses.")
+
+	body := parser.statement()
+
+	if increment != nil {
+		body = NewBlock([]Stmt{body, NewExpression(increment)}, true)
+	}
+
+	if conditional == nil {
+		conditional = NewLiteral(true)
+	}
+	body = NewWhileLoop(conditional, body)
+
+	if initializer != nil {
+		body = NewBlock([]Stmt{initializer, body}, false)
+	}
+
+	return body
+}
+
+func (parser *AstParser) whileStatement() Stmt {
+	parser.consume(references.LeftParen, "Expect '(' after while.")
+	condition := parser.expression()
+	parser.consume(references.RightParen, "Expect ')' after while condition.")
+
+	body := parser.statement()
+
+	return NewWhileLoop(condition, body)
 }
 
 func (parser *AstParser) ifStatement() Stmt {
@@ -81,7 +171,7 @@ func (parser *AstParser) ifStatement() Stmt {
 		elseStatement = parser.statement()
 	}
 
-	return NewIft(condition, thenStatement, elseStatement)
+	return NewIfCmd(condition, thenStatement, elseStatement)
 }
 
 func (parser *AstParser) block() []Stmt {
@@ -113,8 +203,9 @@ func (parser *AstParser) expression() Expr {
 }
 
 func (parser *AstParser) assignment() Expr {
-	expr := parser.equality()
+	expr := parser.or()
 
+	// TODO - Add in ++ and -- here
 	if parser.match(references.Equal) {
 		equals := parser.previous()
 		value := parser.assignment()
@@ -124,6 +215,30 @@ func (parser *AstParser) assignment() Expr {
 		}
 
 		throwError(equals, "Invalid assignment target.")
+	}
+
+	return expr
+}
+
+func (parser *AstParser) or() Expr {
+	expr := parser.and()
+
+	for parser.match(references.Or) {
+		operator := parser.previous()
+		right := parser.and()
+		expr = NewLogical(expr, operator, right)
+	}
+
+	return expr
+}
+
+func (parser *AstParser) and() Expr {
+	expr := parser.equality()
+
+	for parser.match(references.And) {
+		operator := parser.previous()
+		right := parser.equality()
+		expr = NewLogical(expr, operator, right)
 	}
 
 	return expr
@@ -303,6 +418,66 @@ func (parser *AstParser) peek() *scanner.Token {
 
 func (parser *AstParser) previous() *scanner.Token {
 	return parser.Tokens[parser.Current-1]
+}
+
+func (parser *AstParser) previousIndex(index int) *scanner.Token {
+	if index < 0 || index >= len(parser.Tokens) || parser.Tokens[index].Type == references.EOF {
+		return nil
+	}
+
+	return parser.Tokens[index]
+}
+
+func (parser *AstParser) calculateDepth() (int, bool) {
+	curr := parser.Current - 1
+	depth := 0
+	leftBraces := 0
+	rightBraces := 0
+	prev := parser.previousIndex(curr)
+	found := false
+	for prev != nil {
+		if prev.Type == references.RightBrace {
+			rightBraces++
+		}
+
+		if prev.Type == references.LeftBrace {
+			leftBraces++
+			if leftBraces > rightBraces {
+				depth++
+			}
+		}
+
+		if leftBraces > rightBraces && (prev.Type == references.For || prev.Type == references.While) {
+			// if type is for loop then look for the initializer and increment the depth
+			if prev.Type == references.For {
+				forCurr := curr + 1
+				forPrev := parser.previousIndex(forCurr)
+				forFound := false
+				for forPrev != nil && forPrev.Type != references.Semicolon && forPrev.Type != references.RightParen {
+					if forPrev.Type == references.Var {
+						forFound = true
+						break
+					}
+
+					forCurr++
+					forPrev = parser.previousIndex(forCurr)
+				}
+
+				// increment depth because an initializer means a second enclosing block
+				if forFound {
+					depth++
+				}
+			}
+
+			found = true
+			break
+		}
+
+		curr--
+		prev = parser.previousIndex(curr)
+	}
+
+	return depth, found
 }
 
 func throwError(token *scanner.Token, message string) {

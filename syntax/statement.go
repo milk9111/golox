@@ -4,29 +4,37 @@ import "golox/scanner"
 
 type Stmt interface{
 	accept(visitor StmtVisitor) interface{}
-}
+	String() string}
 
 type StmtVisitor interface {
 	visitBlockStmt(stmt *Block) interface{}
 	visitExpressionStmt(stmt *Expression) interface{}
-	visitIftStmt(stmt *Ift) interface{}
+	visitIfCmdStmt(stmt *IfCmd) interface{}
 	visitPrintStmt(stmt *Print) interface{}
-	visitVartStmt(stmt *Vart) interface{}
+	visitVarCmdStmt(stmt *VarCmd) interface{}
+	visitWhileLoopStmt(stmt *WhileLoop) interface{}
+	visitBreakCmdStmt(stmt *BreakCmd) interface{}
+	visitContinueCmdStmt(stmt *ContinueCmd) interface{}
 }
 
 type Block struct {
 	statements []Stmt
+	isLoopIncrementer bool
 }
 
-func NewBlock(statements []Stmt) Stmt {
+func NewBlock(statements []Stmt, isLoopIncrementer bool) Stmt {
 	return &Block{
 		statements: statements,
+		isLoopIncrementer: isLoopIncrementer,
 	}
 }
 
 func (block *Block) accept(visitor StmtVisitor) interface{} {
 	return visitor.visitBlockStmt(block)
 }
+
+func (block *Block) String() string {
+	return "Block"}
 
 
 type Expression struct {
@@ -43,24 +51,30 @@ func (expression *Expression) accept(visitor StmtVisitor) interface{} {
 	return visitor.visitExpressionStmt(expression)
 }
 
+func (expression *Expression) String() string {
+	return "Expression"}
 
-type Ift struct {
+
+type IfCmd struct {
 	condition Expr
 	thenBranch Stmt
 	elseBranch Stmt
 }
 
-func NewIft(condition Expr, thenBranch Stmt, elseBranch Stmt) Stmt {
-	return &Ift{
+func NewIfCmd(condition Expr, thenBranch Stmt, elseBranch Stmt) Stmt {
+	return &IfCmd{
 		condition: condition,
 		thenBranch: thenBranch,
 		elseBranch: elseBranch,
 	}
 }
 
-func (ift *Ift) accept(visitor StmtVisitor) interface{} {
-	return visitor.visitIftStmt(ift)
+func (ifcmd *IfCmd) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitIfCmdStmt(ifcmd)
 }
+
+func (ifcmd *IfCmd) String() string {
+	return "IfCmd"}
 
 
 type Print struct {
@@ -77,21 +91,83 @@ func (print *Print) accept(visitor StmtVisitor) interface{} {
 	return visitor.visitPrintStmt(print)
 }
 
+func (print *Print) String() string {
+	return "Print"}
 
-type Vart struct {
+
+type VarCmd struct {
 	name *scanner.Token
 	initializer Expr
 }
 
-func NewVart(name *scanner.Token, initializer Expr) Stmt {
-	return &Vart{
+func NewVarCmd(name *scanner.Token, initializer Expr) Stmt {
+	return &VarCmd{
 		name: name,
 		initializer: initializer,
 	}
 }
 
-func (vart *Vart) accept(visitor StmtVisitor) interface{} {
-	return visitor.visitVartStmt(vart)
+func (varcmd *VarCmd) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitVarCmdStmt(varcmd)
 }
+
+func (varcmd *VarCmd) String() string {
+	return "VarCmd"}
+
+
+type WhileLoop struct {
+	condition Expr
+	body Stmt
+}
+
+func NewWhileLoop(condition Expr, body Stmt) Stmt {
+	return &WhileLoop{
+		condition: condition,
+		body: body,
+	}
+}
+
+func (whileloop *WhileLoop) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitWhileLoopStmt(whileloop)
+}
+
+func (whileloop *WhileLoop) String() string {
+	return "WhileLoop"}
+
+
+type BreakCmd struct {
+	envDepth int
+}
+
+func NewBreakCmd(envDepth int) Stmt {
+	return &BreakCmd{
+		envDepth: envDepth,
+	}
+}
+
+func (breakcmd *BreakCmd) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitBreakCmdStmt(breakcmd)
+}
+
+func (breakcmd *BreakCmd) String() string {
+	return "BreakCmd"}
+
+
+type ContinueCmd struct {
+	envDepth int
+}
+
+func NewContinueCmd(envDepth int) Stmt {
+	return &ContinueCmd{
+		envDepth: envDepth,
+	}
+}
+
+func (continuecmd *ContinueCmd) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitContinueCmdStmt(continuecmd)
+}
+
+func (continuecmd *ContinueCmd) String() string {
+	return "ContinueCmd"}
 
 

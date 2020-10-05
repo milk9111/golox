@@ -24,11 +24,14 @@ func main() {
 	})
 
 	defineAst(os.Args[1], "statement.go", "Stmt", []string{
-		"Block : statements []Stmt",
+		"Block : statements []Stmt, isLoopIncrementer bool",
 		"Expression : expression Expr",
-		"Ift : condition Expr, thenBranch Stmt, elseBranch Stmt",
+		"IfCmd : condition Expr, thenBranch Stmt, elseBranch Stmt",
 		"Print : expression Expr",
-		"Vart : name *scanner.Token, initializer Expr",
+		"VarCmd : name *scanner.Token, initializer Expr",
+		"WhileLoop : condition Expr, body Stmt",
+		"BreakCmd : envDepth int",
+		"ContinueCmd : envDepth int",
 	})
 }
 
@@ -45,6 +48,7 @@ func defineAst(outputDir string, filename string, baseName string, types []strin
 	sb.WriteString("\n")
 	sb.WriteString(fmt.Sprintf("type %s interface{\n", baseName))
 	sb.WriteString(fmt.Sprintf("\taccept(visitor %s) interface{}\n", visitorName))
+	sb.WriteString("\tString() string")
 	sb.WriteString("}\n")
 	sb.WriteString("\n")
 
@@ -91,5 +95,11 @@ func defineType(sb *strings.Builder, baseName string, structName string, visitor
 	sb.WriteString(fmt.Sprintf("func (%s *%s) accept(visitor %s) interface{} {\n", strings.ToLower(structName), structName, visitorName))
 	sb.WriteString(fmt.Sprintf("\treturn visitor.visit%s%s(%s)\n", structName, baseName, strings.ToLower(structName)))
 	sb.WriteString("}\n")
+	sb.WriteString("\n")
+
+	sb.WriteString(fmt.Sprintf("func (%s *%s) String() string {\n", strings.ToLower(structName), structName))
+	sb.WriteString(fmt.Sprintf("\treturn \"%s\"", structName))
+	sb.WriteString("}\n")
+
 	sb.WriteString("\n\n")
 }
