@@ -1,24 +1,11 @@
-var a = 0;
-
-while (a < 2) {
-    a = a + 1;
-
-    for (var b = 0; b < 2; b = b + 1) {
-        if (b < 2) {
-            print "continue for";
-            continue;
-        }
-
-        print "here for";
-    }
-    
-    if (a <= 1) {
-        print "continue while";
-        continue;
-    }
-
-    print "here";
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
 }
 
+for (var i = 0; i < 20; i = i + 1) {
+    //fib(i);
+  print fib(i);
+}
 
-print "out here";
+// SOMETHING IS VERY WRONG WITH THE SCOPING

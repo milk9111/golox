@@ -9,8 +9,10 @@ type Stmt interface{
 type StmtVisitor interface {
 	visitBlockStmt(stmt *Block) interface{}
 	visitExpressionStmt(stmt *Expression) interface{}
+	visitFunctionStmt(stmt *Function) interface{}
 	visitIfCmdStmt(stmt *IfCmd) interface{}
 	visitPrintStmt(stmt *Print) interface{}
+	visitReturnCmdStmt(stmt *ReturnCmd) interface{}
 	visitVarCmdStmt(stmt *VarCmd) interface{}
 	visitWhileLoopStmt(stmt *WhileLoop) interface{}
 	visitBreakCmdStmt(stmt *BreakCmd) interface{}
@@ -55,6 +57,28 @@ func (expression *Expression) String() string {
 	return "Expression"}
 
 
+type Function struct {
+	name *scanner.Token
+	params []*scanner.Token
+	body []Stmt
+}
+
+func NewFunction(name *scanner.Token, params []*scanner.Token, body []Stmt) Stmt {
+	return &Function{
+		name: name,
+		params: params,
+		body: body,
+	}
+}
+
+func (function *Function) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitFunctionStmt(function)
+}
+
+func (function *Function) String() string {
+	return "Function"}
+
+
 type IfCmd struct {
 	condition Expr
 	thenBranch Stmt
@@ -93,6 +117,26 @@ func (print *Print) accept(visitor StmtVisitor) interface{} {
 
 func (print *Print) String() string {
 	return "Print"}
+
+
+type ReturnCmd struct {
+	keyword *scanner.Token
+	value Expr
+}
+
+func NewReturnCmd(keyword *scanner.Token, value Expr) Stmt {
+	return &ReturnCmd{
+		keyword: keyword,
+		value: value,
+	}
+}
+
+func (returncmd *ReturnCmd) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitReturnCmdStmt(returncmd)
+}
+
+func (returncmd *ReturnCmd) String() string {
+	return "ReturnCmd"}
 
 
 type VarCmd struct {

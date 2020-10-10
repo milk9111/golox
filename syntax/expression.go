@@ -2,14 +2,14 @@ package syntax
 
 import "golox/scanner"
 
-type Expr interface {
+type Expr interface{
 	accept(visitor ExprVisitor) interface{}
-	String() string
-}
+	String() string}
 
 type ExprVisitor interface {
 	visitAssignExpr(expr *Assign) interface{}
 	visitBinaryExpr(expr *Binary) interface{}
+	visitCallExpr(expr *Call) interface{}
 	visitGroupingExpr(expr *Grouping) interface{}
 	visitLiteralExpr(expr *Literal) interface{}
 	visitLogicalExpr(expr *Logical) interface{}
@@ -18,13 +18,13 @@ type ExprVisitor interface {
 }
 
 type Assign struct {
-	name  *scanner.Token
+	name *scanner.Token
 	value Expr
 }
 
 func NewAssign(name *scanner.Token, value Expr) Expr {
 	return &Assign{
-		name:  name,
+		name: name,
 		value: value,
 	}
 }
@@ -34,20 +34,20 @@ func (assign *Assign) accept(visitor ExprVisitor) interface{} {
 }
 
 func (assign *Assign) String() string {
-	return "Assign"
-}
+	return "Assign"}
+
 
 type Binary struct {
-	left     Expr
+	left Expr
 	operator *scanner.Token
-	right    Expr
+	right Expr
 }
 
 func NewBinary(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Binary{
-		left:     left,
+		left: left,
 		operator: operator,
-		right:    right,
+		right: right,
 	}
 }
 
@@ -56,8 +56,30 @@ func (binary *Binary) accept(visitor ExprVisitor) interface{} {
 }
 
 func (binary *Binary) String() string {
-	return "Binary"
+	return "Binary"}
+
+
+type Call struct {
+	callee Expr
+	paren *scanner.Token
+	arguments []Expr
 }
+
+func NewCall(callee Expr, paren *scanner.Token, arguments []Expr) Expr {
+	return &Call{
+		callee: callee,
+		paren: paren,
+		arguments: arguments,
+	}
+}
+
+func (call *Call) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitCallExpr(call)
+}
+
+func (call *Call) String() string {
+	return "Call"}
+
 
 type Grouping struct {
 	expression Expr
@@ -74,8 +96,8 @@ func (grouping *Grouping) accept(visitor ExprVisitor) interface{} {
 }
 
 func (grouping *Grouping) String() string {
-	return "Grouping"
-}
+	return "Grouping"}
+
 
 type Literal struct {
 	value interface{}
@@ -92,20 +114,20 @@ func (literal *Literal) accept(visitor ExprVisitor) interface{} {
 }
 
 func (literal *Literal) String() string {
-	return "Literal"
-}
+	return "Literal"}
+
 
 type Logical struct {
-	left     Expr
+	left Expr
 	operator *scanner.Token
-	right    Expr
+	right Expr
 }
 
 func NewLogical(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Logical{
-		left:     left,
+		left: left,
 		operator: operator,
-		right:    right,
+		right: right,
 	}
 }
 
@@ -114,18 +136,18 @@ func (logical *Logical) accept(visitor ExprVisitor) interface{} {
 }
 
 func (logical *Logical) String() string {
-	return "Logical"
-}
+	return "Logical"}
+
 
 type Unary struct {
 	operator *scanner.Token
-	right    Expr
+	right Expr
 }
 
 func NewUnary(operator *scanner.Token, right Expr) Expr {
 	return &Unary{
 		operator: operator,
-		right:    right,
+		right: right,
 	}
 }
 
@@ -134,8 +156,8 @@ func (unary *Unary) accept(visitor ExprVisitor) interface{} {
 }
 
 func (unary *Unary) String() string {
-	return "Unary"
-}
+	return "Unary"}
+
 
 type Variable struct {
 	name *scanner.Token
@@ -152,5 +174,6 @@ func (variable *Variable) accept(visitor ExprVisitor) interface{} {
 }
 
 func (variable *Variable) String() string {
-	return "Variable"
-}
+	return "Variable"}
+
+

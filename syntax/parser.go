@@ -35,11 +35,37 @@ func (parser *AstParser) declaration() Stmt {
 		}
 	}()
 
+	if parser.match(references.Fun) {
+		return parser.function("function")
+	}
+
 	if parser.match(references.Var) {
 		return parser.varDeclaration()
 	}
 
 	return parser.statement()
+}
+
+func (parser *AstParser) function(kind string) Stmt {
+	name := parser.consume(references.Identifier, fmt.Sprintf("Expect %s name.", kind))
+	parser.consume(references.LeftParen, fmt.Sprintf("Expect '(' after %s name", kind))
+
+	var params []*scanner.Token
+	if !parser.check(references.RightParen) {
+		for ok := true; ok; ok = parser.match(references.Comma) {
+			if len(params) > 255 {
+				throwError(parser.peek(), "Can't have more than 255 parameters.")
+			}
+
+			params = append(params, parser.consume(references.Identifier, "Expect parameter name."))
+		}
+	}
+
+	parser.consume(references.RightParen, "Expect ')' after parameters.")
+	parser.consume(references.LeftBrace, fmt.Sprintf("Expect '{' before %s body.", kind))
+	body := parser.block()
+
+	return NewFunction(name, params, body)
 }
 
 func (parser *AstParser) varDeclaration() Stmt {
@@ -67,6 +93,10 @@ func (parser *AstParser) statement() Stmt {
 		return parser.printStatement()
 	}
 
+	if parser.match(references.Return) {
+		return parser.returnStatement()
+	}
+
 	if parser.match(references.While) {
 		return parser.whileStatement()
 	}
@@ -84,6 +114,18 @@ func (parser *AstParser) statement() Stmt {
 	}
 
 	return parser.expressionStatement()
+}
+
+func (parser *AstParser) returnStatement() Stmt {
+	keyword := parser.previous()
+
+	var value Expr
+	if !parser.check(references.Semicolon) {
+		value = parser.expression()
+	}
+
+	parser.consume(references.Semicolon, "Expect ';' after return value.")
+	return NewReturnCmd(keyword, value)
 }
 
 func (parser *AstParser) continueStatement() Stmt {
@@ -307,7 +349,36 @@ func (parser *AstParser) unary() Expr {
 		return NewUnary(operator, right)
 	}
 
-	return parser.primary()
+	return parser.call()
+}
+
+func (parser *AstParser) call() Expr {
+	expr := parser.primary()
+
+	for {
+		if parser.match(references.LeftParen) {
+			expr = parser.finishCall(expr)
+		} else {
+			break
+		}
+	}
+
+	return expr
+}
+
+func (parser *AstParser) finishCall(callee Expr) Expr {
+	var arguments []Expr
+	if !parser.check(references.RightParen) {
+		for ok := true; ok; ok = parser.match(references.Comma) {
+			if len(arguments) > 255 {
+				throwError(parser.peek(), "Can't have more than 255 arguments.")
+			}
+			arguments = append(arguments, parser.expression())
+		}
+	}
+
+	paren := parser.consume(references.RightParen, "Expect ')' after arguments.")
+	return NewCall(callee, paren, arguments)
 }
 
 func (parser *AstParser) primary() Expr {
@@ -490,4 +561,8 @@ func throwRuntimeError(token *scanner.Token, message string) {
 	loxerror.TokenRuntimeError(token.Type, token.Line, token.Lexeme, message, true)
 
 	panic(fmt.Errorf(message))
+}
+
+func throwReturn(obj interface{}) {
+	panic(obj)
 }

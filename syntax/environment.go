@@ -5,19 +5,24 @@ import (
 	"golox/scanner"
 )
 
+var level = -1
+
 type Environment struct {
 	enclosing  *Environment
 	exit       bool
 	continuing bool
 	values     map[string]interface{}
+	name       string
 }
 
 func NewEnvironment(enclosing *Environment) *Environment {
+	level++
 	return &Environment{
 		enclosing:  enclosing,
 		exit:       false,
 		continuing: false,
 		values:     make(map[string]interface{}),
+		name:       fmt.Sprintf("env: %d", level),
 	}
 }
 
@@ -55,4 +60,11 @@ func (env *Environment) get(name *scanner.Token) interface{} {
 
 func (env *Environment) define(name string, value interface{}) {
 	env.values[name] = value
+}
+
+func (env *Environment) print() {
+	fmt.Printf("%s\n", env.name)
+	for key, val := range env.values {
+		fmt.Printf("\t%s: %v\n", key, val)
+	}
 }

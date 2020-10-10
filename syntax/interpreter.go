@@ -7,14 +7,18 @@ import (
 	"strconv"
 )
 
+var globals = NewEnvironment(nil)
+
 type Interpreter struct {
 	env  *Environment
 	prev *Environment
 }
 
 func NewInterpreter() *Interpreter {
+	globals.define("clock", NewClock())
+
 	return &Interpreter{
-		env:  NewEnvironment(nil),
+		env:  globals,
 		prev: nil,
 	}
 }
@@ -32,6 +36,23 @@ func (interpreter *Interpreter) Interpret(statements []Stmt) {
 
 func (interpreter *Interpreter) execute(stmt Stmt) {
 	stmt.accept(interpreter)
+}
+
+func (interpreter *Interpreter) visitReturnCmdStmt(stmt *ReturnCmd) interface{} {
+	var value interface{}
+	if stmt.value != nil {
+		value = interpreter.evaluate(stmt.value)
+	}
+
+	throwReturn(value)
+	return nil
+}
+
+func (interpreter *Interpreter) visitFunctionStmt(stmt *Function) interface{} {
+	function := NewLoxFunction(stmt, interpreter.env)
+	globals.define(stmt.name.Lexeme, function)
+
+	return nil
 }
 
 func (interpreter *Interpreter) visitContinueCmdStmt(continueCmd *ContinueCmd) interface{} {
@@ -109,7 +130,7 @@ func (interpreter *Interpreter) executeBlock(statements []Stmt, env *Environment
 	interpreter.env = env
 	for _, statement := range statements {
 		interpreter.execute(statement)
-		if interpreter.env.continuing && block.isLoopIncrementer {
+		if interpreter.env.continuing && block != nil && block.isLoopIncrementer {
 			interpreter.env.continuing = false
 			continue
 		}
@@ -230,6 +251,26 @@ func (interpreter *Interpreter) visitBinaryExpr(expr *Binary) interface{} {
 
 func (interpreter *Interpreter) evaluate(expr Expr) interface{} {
 	return expr.accept(interpreter)
+}
+
+func (interpreter *Interpreter) visitCallExpr(expr *Call) interface{} {
+	callee := interpreter.evaluate(expr.callee)
+
+	var arguments []interface{}
+	for _, arg := range expr.arguments {
+		arguments = append(arguments, interpreter.evaluate(arg))
+	}
+
+	if _, ok := callee.(LoxCallable); !ok {
+		throwRuntimeError(expr.paren, "Can only call functions and classes.")
+	}
+
+	function := callee.(LoxCallable)
+	if len(arguments) != function.arity() {
+		throwRuntimeError(expr.paren, fmt.Sprintf("Expected %d arguments but got %d.", function.arity(), len(arguments)))
+	}
+
+	return function.call(interpreter, arguments)
 }
 
 func checkNumberOperand(operator *scanner.Token, operands ...interface{}) {
