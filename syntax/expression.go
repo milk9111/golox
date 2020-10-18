@@ -10,6 +10,9 @@ type ExprVisitor interface {
 	visitAssignExpr(expr *Assign) interface{}
 	visitBinaryExpr(expr *Binary) interface{}
 	visitCallExpr(expr *Call) interface{}
+	visitGetExpr(expr *Get) interface{}
+	visitSetExpr(expr *Set) interface{}
+	visitThisExpr(expr *This) interface{}
 	visitGroupingExpr(expr *Grouping) interface{}
 	visitLiteralExpr(expr *Literal) interface{}
 	visitLogicalExpr(expr *Logical) interface{}
@@ -79,6 +82,66 @@ func (call *Call) accept(visitor ExprVisitor) interface{} {
 
 func (call *Call) String() string {
 	return "Call"}
+
+
+type Get struct {
+	object Expr
+	name *scanner.Token
+}
+
+func NewGet(object Expr, name *scanner.Token) Expr {
+	return &Get{
+		object: object,
+		name: name,
+	}
+}
+
+func (get *Get) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitGetExpr(get)
+}
+
+func (get *Get) String() string {
+	return "Get"}
+
+
+type Set struct {
+	object Expr
+	name *scanner.Token
+	value Expr
+}
+
+func NewSet(object Expr, name *scanner.Token, value Expr) Expr {
+	return &Set{
+		object: object,
+		name: name,
+		value: value,
+	}
+}
+
+func (set *Set) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitSetExpr(set)
+}
+
+func (set *Set) String() string {
+	return "Set"}
+
+
+type This struct {
+	keyword *scanner.Token
+}
+
+func NewThis(keyword *scanner.Token) Expr {
+	return &This{
+		keyword: keyword,
+	}
+}
+
+func (this *This) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitThisExpr(this)
+}
+
+func (this *This) String() string {
+	return "This"}
 
 
 type Grouping struct {

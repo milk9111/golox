@@ -68,3 +68,25 @@ func (env *Environment) print() {
 		fmt.Printf("\t%s: %v\n", key, val)
 	}
 }
+
+func (env *Environment) assignAt(depth int, token *scanner.Token, value interface{}) {
+	env.ancestor(depth).values[token.Lexeme] = value
+}
+
+func (env *Environment) getAt(depth int, name string) interface{} {
+	val, ok := env.ancestor(depth).values[name]
+	if !ok {
+		return nil
+	}
+
+	return val
+}
+
+func (env *Environment) ancestor(depth int) *Environment {
+	currEnv := env
+	for i := 0; i < depth; i++ {
+		currEnv = currEnv.enclosing
+	}
+
+	return currEnv
+}

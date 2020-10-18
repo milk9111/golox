@@ -17,6 +17,9 @@ func main() {
 		"Assign : name *scanner.Token, value Expr",
 		"Binary : left Expr, operator *scanner.Token, right Expr",
 		"Call : callee Expr, paren *scanner.Token, arguments []Expr",
+		"Get : object Expr, name *scanner.Token",
+		"Set : object Expr, name *scanner.Token, value Expr",
+		"This : keyword *scanner.Token",
 		"Grouping : expression Expr",
 		"Literal : value interface{}",
 		"Logical : left Expr, operator *scanner.Token, right Expr",
@@ -33,8 +36,9 @@ func main() {
 		"ReturnCmd : keyword *scanner.Token, value Expr",
 		"VarCmd : name *scanner.Token, initializer Expr",
 		"WhileLoop : condition Expr, body Stmt",
-		"BreakCmd : envDepth int",
-		"ContinueCmd : envDepth int",
+		"BreakCmd : keyword *scanner.Token, envDepth int",
+		"ContinueCmd : keyword *scanner.Token, envDepth int",
+		"Class : name *scanner.Token, methods []*Function",
 	})
 }
 

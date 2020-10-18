@@ -17,6 +17,7 @@ type StmtVisitor interface {
 	visitWhileLoopStmt(stmt *WhileLoop) interface{}
 	visitBreakCmdStmt(stmt *BreakCmd) interface{}
 	visitContinueCmdStmt(stmt *ContinueCmd) interface{}
+	visitClassStmt(stmt *Class) interface{}
 }
 
 type Block struct {
@@ -180,11 +181,13 @@ func (whileloop *WhileLoop) String() string {
 
 
 type BreakCmd struct {
+	keyword *scanner.Token
 	envDepth int
 }
 
-func NewBreakCmd(envDepth int) Stmt {
+func NewBreakCmd(keyword *scanner.Token, envDepth int) Stmt {
 	return &BreakCmd{
+		keyword: keyword,
 		envDepth: envDepth,
 	}
 }
@@ -198,11 +201,13 @@ func (breakcmd *BreakCmd) String() string {
 
 
 type ContinueCmd struct {
+	keyword *scanner.Token
 	envDepth int
 }
 
-func NewContinueCmd(envDepth int) Stmt {
+func NewContinueCmd(keyword *scanner.Token, envDepth int) Stmt {
 	return &ContinueCmd{
+		keyword: keyword,
 		envDepth: envDepth,
 	}
 }
@@ -213,5 +218,25 @@ func (continuecmd *ContinueCmd) accept(visitor StmtVisitor) interface{} {
 
 func (continuecmd *ContinueCmd) String() string {
 	return "ContinueCmd"}
+
+
+type Class struct {
+	name *scanner.Token
+	methods []*Function
+}
+
+func NewClass(name *scanner.Token, methods []*Function) Stmt {
+	return &Class{
+		name: name,
+		methods: methods,
+	}
+}
+
+func (class *Class) accept(visitor StmtVisitor) interface{} {
+	return visitor.visitClassStmt(class)
+}
+
+func (class *Class) String() string {
+	return "Class"}
 
 

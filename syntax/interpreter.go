@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"golox/references"
 	"golox/scanner"
+	"math"
 	"strconv"
+	"strings"
 )
 
 var globals = NewEnvironment(nil)
+var locals = map[Expr]*int{}
 
 type Interpreter struct {
 	env  *Environment
@@ -36,6 +39,10 @@ func (interpreter *Interpreter) Interpret(statements []Stmt) {
 
 func (interpreter *Interpreter) execute(stmt Stmt) {
 	stmt.accept(interpreter)
+}
+
+func (interpreter *Interpreter) resolve(expr Expr, depth *int) {
+	locals[expr] = depth
 }
 
 func (interpreter *Interpreter) visitReturnCmdStmt(stmt *ReturnCmd) interface{} {
@@ -119,6 +126,30 @@ func (interpreter *Interpreter) visitIfCmdStmt(stmt *IfCmd) interface{} {
 	return nil
 }
 
+func (interpreter *Interpreter) visitGetExpr(expr *Get) interface{} {
+	object := interpreter.evaluate(expr.object)
+	if val, ok := object.(*LoxInstance); ok {
+		return val.get(expr.name)
+	}
+
+	throwRuntimeError(expr.name, "Only instances have properties.")
+	return nil
+}
+
+func (interpreter *Interpreter) visitSetExpr(expr *Set) interface{} {
+	object := interpreter.evaluate(expr.object)
+
+	val, ok := object.(*LoxInstance)
+	if !ok {
+		throwRuntimeError(expr.name, "Only instances have fields.")
+	}
+
+	value := interpreter.evaluate(expr.value)
+	val.set(expr.name, value)
+
+	return value
+}
+
 func (interpreter *Interpreter) visitBlockStmt(stmt *Block) interface{} {
 	interpreter.executeBlock(stmt.statements, NewEnvironment(interpreter.env), stmt)
 	return nil
@@ -146,7 +177,19 @@ func (interpreter *Interpreter) executeBlock(statements []Stmt, env *Environment
 
 func (interpreter *Interpreter) visitAssignExpr(expr *Assign) interface{} {
 	value := interpreter.evaluate(expr.value)
-	interpreter.env.assign(expr.name, value)
+
+	distance, ok := locals[expr]
+	if !ok {
+		interpreter.env.assign(expr.name, value)
+		return value
+	}
+
+	if distance != nil {
+		interpreter.env.assignAt(*distance, expr.name, value)
+	} else {
+		globals.assign(expr.name, value)
+	}
+
 	return value
 }
 
@@ -160,8 +203,34 @@ func (interpreter *Interpreter) visitVarCmdStmt(stmt *VarCmd) interface{} {
 	return nil
 }
 
+func (interpreter *Interpreter) visitClassStmt(stmt *Class) interface{} {
+	interpreter.env.define(stmt.name.Lexeme, nil)
+
+	methods := map[string]*LoxFunction{}
+	for _, method := range stmt.methods {
+		methods[method.name.Lexeme] = NewLoxFunction(method, interpreter.env)
+	}
+
+	class := NewLoxClass(stmt.name.Lexeme, methods)
+	interpreter.env.assign(stmt.name, class)
+	return nil
+}
+
 func (interpreter *Interpreter) visitVariableExpr(expr *Variable) interface{} {
-	return interpreter.env.get(expr.name)
+	return interpreter.lookupVariable(expr.name, expr)
+}
+
+func (interpreter *Interpreter) lookupVariable(name *scanner.Token, expr Expr) interface{} {
+	distance, ok := locals[expr]
+	if !ok {
+		return interpreter.env.get(name)
+	}
+
+	if distance != nil {
+		return interpreter.env.getAt(*distance, name.Lexeme)
+	}
+
+	return globals.get(name)
 }
 
 func (interpreter *Interpreter) visitExpressionStmt(stmt *Expression) interface{} {
@@ -230,6 +299,9 @@ func (interpreter *Interpreter) visitBinaryExpr(expr *Binary) interface{} {
 	case references.Star:
 		checkNumberOperand(expr.operator, left, right)
 		return left.(float64) * right.(float64)
+	case references.Modulo:
+		checkNumberOperand(expr.operator, left, right)
+		return math.Mod(left.(float64), right.(float64))
 	case references.Plus:
 		lFl, lOk := left.(float64)
 		rFl, rOk := right.(float64)
@@ -253,6 +325,10 @@ func (interpreter *Interpreter) evaluate(expr Expr) interface{} {
 	return expr.accept(interpreter)
 }
 
+func (interpreter *Interpreter) visitThisExpr(expr *This) interface{} {
+	return interpreter.lookupVariable(expr.keyword, expr)
+}
+
 func (interpreter *Interpreter) visitCallExpr(expr *Call) interface{} {
 	callee := interpreter.evaluate(expr.callee)
 
@@ -262,12 +338,12 @@ func (interpreter *Interpreter) visitCallExpr(expr *Call) interface{} {
 	}
 
 	if _, ok := callee.(LoxCallable); !ok {
-		throwRuntimeError(expr.paren, "Can only call functions and classes.")
+		throwRuntimeError(expr.paren, fmt.Sprintf("Can only call functions and classes but tried to call '%v'.", callee))
 	}
 
 	function := callee.(LoxCallable)
 	if len(arguments) != function.arity() {
-		throwRuntimeError(expr.paren, fmt.Sprintf("Expected %d arguments but got %d.", function.arity(), len(arguments)))
+		throwRuntimeError(expr.paren, fmt.Sprintf("Expected %d arguments but got %d for %s '%s'.", function.arity(), len(arguments), strings.ToLower(references.GetFunctionTypeName(function.callableType())), function.name()))
 	}
 
 	return function.call(interpreter, arguments)
@@ -323,6 +399,10 @@ func stringify(obj interface{}) string {
 
 	if f, ok := obj.(float64); ok {
 		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+
+	if val, ok := obj.(LoxCallable); ok {
+		return val.name()
 	}
 
 	return fmt.Sprintf("%v", obj)

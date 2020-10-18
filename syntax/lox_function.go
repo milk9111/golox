@@ -1,13 +1,16 @@
 package syntax
 
-import "fmt"
+import (
+	"fmt"
+	"golox/references"
+)
 
 type LoxFunction struct {
 	declaration *Function
 	closure     *Environment
 }
 
-func NewLoxFunction(declaration *Function, closure *Environment) LoxCallable {
+func NewLoxFunction(declaration *Function, closure *Environment) *LoxFunction {
 	return &LoxFunction{
 		declaration: declaration,
 		closure:     closure,
@@ -16,6 +19,12 @@ func NewLoxFunction(declaration *Function, closure *Environment) LoxCallable {
 
 func (fun *LoxFunction) name() string {
 	return fun.declaration.name.Lexeme
+}
+
+func (fun *LoxFunction) bind(instance *LoxInstance) *LoxFunction {
+	env := NewEnvironment(fun.closure)
+	env.define("this", instance)
+	return NewLoxFunction(fun.declaration, env)
 }
 
 func (fun *LoxFunction) call(interpreter *Interpreter, arguments []interface{}) interface{} {
@@ -48,4 +57,8 @@ func (fun *LoxFunction) arity() int {
 
 func (fun *LoxFunction) String() string {
 	return fmt.Sprintf("<fn %s>", fun.declaration.name.Lexeme)
+}
+
+func (fun *LoxFunction) callableType() references.FunctionType {
+	return references.Function
 }

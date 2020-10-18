@@ -8,6 +8,7 @@ import (
 
 var keywords = map[string]references.TokenType{
 	"and":      references.And,
+	"new":      references.New,
 	"class":    references.Class,
 	"else":     references.Else,
 	"false":    references.False,
@@ -79,11 +80,36 @@ func (scanner *Scanner) scanToken() {
 	case '.':
 		scanner.addToken(references.Dot)
 		break
+	case '%':
+		scanner.addToken(references.Modulo)
+		break
 	case '-':
-		scanner.addToken(references.Minus)
+		token := references.Minus
+		if scanner.peek() == '-' {
+			scanner.advance()
+			token = references.DecrementOne
+		}
+
+		if scanner.peek() == '=' {
+			scanner.advance()
+			token = references.Decrement
+		}
+
+		scanner.addToken(token)
 		break
 	case '+':
-		scanner.addToken(references.Plus)
+		token := references.Plus
+		if scanner.peek() == '+' {
+			scanner.advance()
+			token = references.IncrementOne
+		}
+
+		if scanner.peek() == '=' {
+			scanner.advance()
+			token = references.Increment
+		}
+
+		scanner.addToken(token)
 		break
 	case ';':
 		scanner.addToken(references.Semicolon)
@@ -123,6 +149,16 @@ func (scanner *Scanner) scanToken() {
 		if scanner.match('/') {
 			for scanner.peek() != '\n' && !scanner.isAtEnd() {
 				scanner.advance()
+			}
+		} else if scanner.match('*') {
+			for !scanner.isAtEnd() {
+				if scanner.match('*') && scanner.match('/') {
+					break
+				}
+
+				if c := scanner.advance(); c == '\n' {
+					scanner.Line++
+				}
 			}
 		} else {
 			scanner.addToken(references.Slash)

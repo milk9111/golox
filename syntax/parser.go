@@ -7,6 +7,8 @@ import (
 	"golox/scanner"
 )
 
+var declaredClasses map[string]bool = map[string]bool{}
+
 type AstParser struct {
 	Tokens  []*scanner.Token
 	Current int
@@ -35,6 +37,10 @@ func (parser *AstParser) declaration() Stmt {
 		}
 	}()
 
+	if parser.match(references.Class) {
+		return parser.classDeclaration()
+	}
+
 	if parser.match(references.Fun) {
 		return parser.function("function")
 	}
@@ -44,6 +50,26 @@ func (parser *AstParser) declaration() Stmt {
 	}
 
 	return parser.statement()
+}
+
+func (parser *AstParser) classDeclaration() Stmt {
+	name := parser.consume(references.Identifier, "Expect class name.")
+	parser.consume(references.LeftBrace, "Expect '{' before class body.")
+
+	var methods []*Function
+	for !parser.check(references.RightBrace) && !parser.isAtEnd() {
+		methods = append(methods, parser.function("method").(*Function))
+	}
+
+	parser.consume(references.RightBrace, "Expect '}' after class body.")
+
+	if _, ok := declaredClasses[name.Lexeme]; ok {
+		throwError(name, fmt.Sprintf("Class '%s' has already been defined.", name.Lexeme))
+	}
+
+	declaredClasses[name.Lexeme] = true
+
+	return NewClass(name, methods)
 }
 
 func (parser *AstParser) function(kind string) Stmt {
@@ -129,6 +155,7 @@ func (parser *AstParser) returnStatement() Stmt {
 }
 
 func (parser *AstParser) continueStatement() Stmt {
+	keyword := parser.previous()
 	depth, found := parser.calculateDepth()
 
 	if !found {
@@ -136,10 +163,11 @@ func (parser *AstParser) continueStatement() Stmt {
 	}
 
 	parser.consume(references.Semicolon, "Expect ';' after continue.")
-	return NewContinueCmd(depth)
+	return NewContinueCmd(keyword, depth)
 }
 
 func (parser *AstParser) breakStatement() Stmt {
+	keyword := parser.previous()
 	depth, found := parser.calculateDepth()
 
 	if !found {
@@ -147,7 +175,7 @@ func (parser *AstParser) breakStatement() Stmt {
 	}
 
 	parser.consume(references.Semicolon, "Expect ';' after break.")
-	return NewBreakCmd(depth)
+	return NewBreakCmd(keyword, depth)
 }
 
 func (parser *AstParser) forStatement() Stmt {
@@ -248,15 +276,62 @@ func (parser *AstParser) assignment() Expr {
 	expr := parser.or()
 
 	// TODO - Add in ++ and -- here
-	if parser.match(references.Equal) {
+	switch parser.peek().Type {
+	case references.Equal:
+		parser.advance()
 		equals := parser.previous()
 		value := parser.assignment()
 
 		if v, ok := expr.(*Variable); ok {
 			return NewAssign(v.name, value)
+		} else if val, ok := expr.(*Get); ok {
+			return NewSet(val.object, val.name, value)
 		}
 
 		throwError(equals, "Invalid assignment target.")
+		break
+	case references.IncrementOne:
+		parser.advance()
+		equals := parser.previous()
+
+		if v, ok := expr.(*Variable); ok {
+			return NewAssign(v.name, NewBinary(v, scanner.NewToken(references.Plus, "+", nil, equals.Line), NewLiteral(float64(1))))
+		}
+
+		throwError(equals, "Invalid assignment target.")
+		break
+	case references.Increment:
+		parser.advance()
+		equals := parser.previous()
+		value := parser.assignment()
+
+		if v, ok := expr.(*Variable); ok {
+			return NewAssign(v.name, NewBinary(v, scanner.NewToken(references.Plus, "+", nil, equals.Line), value))
+		}
+
+		throwError(equals, "Invalid assignment target.")
+		break
+	case references.DecrementOne:
+		parser.advance()
+		equals := parser.previous()
+
+		if v, ok := expr.(*Variable); ok {
+			return NewAssign(v.name, NewBinary(v, scanner.NewToken(references.Minus, "-", nil, equals.Line), NewLiteral(float64(1))))
+		}
+
+		throwError(equals, "Invalid assignment target.")
+		break
+	case references.Decrement:
+		parser.advance()
+		equals := parser.previous()
+		value := parser.assignment()
+
+		if v, ok := expr.(*Variable); ok {
+			return NewAssign(v.name, NewBinary(v, scanner.NewToken(references.Minus, "-", nil, equals.Line), value))
+		}
+
+		throwError(equals, "Invalid assignment target.")
+		break
 	}
 
 	return expr
@@ -325,7 +400,7 @@ func (parser *AstParser) addition() Expr {
 func (parser *AstParser) multiplication() Expr {
 	expr := parser.unary()
 
-	for parser.match(references.Slash, references.Star) {
+	for parser.match(references.Slash, references.Star, references.Modulo) {
 		operator := parser.previous()
 		right := parser.unary()
 
@@ -353,11 +428,35 @@ func (parser *AstParser) unary() Expr {
 }
 
 func (parser *AstParser) call() Expr {
+	isInstance := false
+	if parser.match(references.New) {
+		isInstance = true
+	}
+
 	expr := parser.primary()
 
 	for {
 		if parser.match(references.LeftParen) {
+			prev := parser.previousIndex(parser.Current - 2)
+			if isInstance {
+				isInstance = false
+
+				if _, ok := expr.(*Variable); !ok {
+					throwError(prev, "Expected class name after 'new'.")
+				}
+
+				if _, ok := declaredClasses[prev.Lexeme]; !ok {
+					throwError(prev, fmt.Sprintf("Undefined class '%s'.", prev.Lexeme))
+				}
+			} else {
+				if _, ok := declaredClasses[prev.Lexeme]; ok {
+					throwError(prev, "Expected 'new' before instantiation.")
+				}
+			}
 			expr = parser.finishCall(expr)
+		} else if parser.match(references.Dot) {
+			name := parser.consume(references.Identifier, "Expect property name after '.'.")
+			expr = NewGet(expr, name)
 		} else {
 			break
 		}
@@ -396,6 +495,10 @@ func (parser *AstParser) primary() Expr {
 
 	if parser.match(references.Number, references.String) {
 		return NewLiteral(parser.previous().Literal)
+	}
+
+	if parser.match(references.This) {
+		return NewThis(parser.previous())
 	}
 
 	if parser.match(references.Identifier) {

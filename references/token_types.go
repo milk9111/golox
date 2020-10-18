@@ -13,6 +13,7 @@ const (
 	Minus
 	Plus
 	Semicolon
+	Modulo
 	Slash
 	Star
 
@@ -33,6 +34,7 @@ const (
 
 	// Keywords
 	And
+	New
 	Class
 	Else
 	False
@@ -50,6 +52,10 @@ const (
 	While
 	Break
 	Continue
+	Increment
+	Decrement
+	IncrementOne
+	DecrementOne
 
 	EOF
 )

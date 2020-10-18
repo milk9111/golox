@@ -77,11 +77,34 @@ func fileExists(path string) bool {
 }
 
 func run(source string) {
+	defer func() {
+		if err := recover(); err != nil {
+
+		}
+	}()
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("%v\n", r)
+			/*if strings.Contains(err.Error(), "stack overflow") {
+				fmt.Println("[Stack Overflow] - infinite loop?")
+			}*/
+
+		}
+	}()
+
 	scanner := scanner.NewScanner(source)
 	tokens := scanner.ScanTokens()
 
 	parser := syntax.NewAstParser(tokens)
 	statements := parser.Parse()
+
+	if loxerror.HadError() {
+		os.Exit(65)
+	}
+
+	resolver := syntax.NewResolver(interpreter)
+	resolver.Resolve(statements)
 
 	if loxerror.HadError() {
 		os.Exit(65)
