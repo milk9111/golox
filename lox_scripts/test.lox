@@ -1,2 +1,22 @@
+class A {
+  method() {
+      super.method();
+      print "here2";
+    print "A method";
+  }
+}
 
-super.test();
+class B < A {
+  method() {
+    super.method();
+  }
+
+  test() {
+      print "here";
+    this.method();
+  }
+}
+
+class C < B {}
+
+new C().test();

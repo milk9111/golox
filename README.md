@@ -1,2 +1,2 @@
-# lox
-Implementations of the Lox programming language.
+# golox
+A Golang implementation of the Lox programming lanugage by http://craftinginterpreters.com/.
