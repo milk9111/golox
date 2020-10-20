@@ -2,22 +2,40 @@ package syntax
 
 import (
 	"golox/references"
+	"golox/scanner"
 )
 
 type LoxClass struct {
-	className string
-	methods   map[string]*LoxFunction
+	className  string
+	superclass *LoxClass
+	methods    map[string]*LoxFunction
+	fields     map[string]interface{}
 }
 
-func NewLoxClass(name string, methods map[string]*LoxFunction) *LoxClass {
+func NewLoxClass(name string, superclass *LoxClass, methods map[string]*LoxFunction, fields map[string]interface{}) *LoxClass {
 	return &LoxClass{
-		className: name,
-		methods:   methods,
+		className:  name,
+		superclass: superclass,
+		methods:    methods,
+		fields:     fields,
 	}
 }
 
 func (class *LoxClass) findMethod(name string) *LoxFunction {
-	return class.methods[name]
+	if method, ok := class.methods[name]; ok {
+		return method
+	}
+
+	if class.superclass != nil {
+		method := class.superclass.findMethod(name)
+		if method == nil || method.isStatic {
+			return nil
+		}
+
+		return method
+	}
+
+	return nil
 }
 
 func (class *LoxClass) call(interpreter *Interpreter, arguments []interface{}) interface{} {
@@ -29,6 +47,15 @@ func (class *LoxClass) call(interpreter *Interpreter, arguments []interface{}) i
 	}
 
 	return instance
+}
+
+func (class *LoxClass) getStaticMethod(name *scanner.Token) *LoxFunction {
+	method := class.findMethod(name.Lexeme)
+	if method == nil || !method.isStatic {
+		return nil
+	}
+
+	return method
 }
 
 func (class *LoxClass) arity() int {

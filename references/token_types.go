@@ -35,6 +35,7 @@ const (
 	// Keywords
 	And
 	New
+	Static
 	Class
 	Else
 	False

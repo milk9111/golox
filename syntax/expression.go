@@ -1,17 +1,23 @@
 package syntax
 
-import "golox/scanner"
+import (
+	"golox/references"
+	"golox/scanner"
+)
 
-type Expr interface{
+type Expr interface {
 	accept(visitor ExprVisitor) interface{}
-	String() string}
+	String() string
+}
 
 type ExprVisitor interface {
 	visitAssignExpr(expr *Assign) interface{}
 	visitBinaryExpr(expr *Binary) interface{}
 	visitCallExpr(expr *Call) interface{}
-	visitGetExpr(expr *Get) interface{}
+	visitGetMethodExpr(expr *GetMethod) interface{}
+	visitGetFieldExpr(expr *GetField) interface{}
 	visitSetExpr(expr *Set) interface{}
+	visitSuperExpr(expr *Super) interface{}
 	visitThisExpr(expr *This) interface{}
 	visitGroupingExpr(expr *Grouping) interface{}
 	visitLiteralExpr(expr *Literal) interface{}
@@ -21,13 +27,13 @@ type ExprVisitor interface {
 }
 
 type Assign struct {
-	name *scanner.Token
+	name  *scanner.Token
 	value Expr
 }
 
 func NewAssign(name *scanner.Token, value Expr) Expr {
 	return &Assign{
-		name: name,
+		name:  name,
 		value: value,
 	}
 }
@@ -37,20 +43,20 @@ func (assign *Assign) accept(visitor ExprVisitor) interface{} {
 }
 
 func (assign *Assign) String() string {
-	return "Assign"}
-
+	return "Assign"
+}
 
 type Binary struct {
-	left Expr
+	left     Expr
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewBinary(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Binary{
-		left: left,
+		left:     left,
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -59,19 +65,19 @@ func (binary *Binary) accept(visitor ExprVisitor) interface{} {
 }
 
 func (binary *Binary) String() string {
-	return "Binary"}
-
+	return "Binary"
+}
 
 type Call struct {
-	callee Expr
-	paren *scanner.Token
+	callee    Expr
+	paren     *scanner.Token
 	arguments []Expr
 }
 
 func NewCall(callee Expr, paren *scanner.Token, arguments []Expr) Expr {
 	return &Call{
-		callee: callee,
-		paren: paren,
+		callee:    callee,
+		paren:     paren,
 		arguments: arguments,
 	}
 }
@@ -81,40 +87,60 @@ func (call *Call) accept(visitor ExprVisitor) interface{} {
 }
 
 func (call *Call) String() string {
-	return "Call"}
-
-
-type Get struct {
-	object Expr
-	name *scanner.Token
+	return "Call"
 }
 
-func NewGet(object Expr, name *scanner.Token) Expr {
-	return &Get{
+type GetMethod struct {
+	object Expr
+	name   *scanner.Token
+}
+
+func NewGetMethod(object Expr, name *scanner.Token) Expr {
+	return &GetMethod{
 		object: object,
-		name: name,
+		name:   name,
 	}
 }
 
-func (get *Get) accept(visitor ExprVisitor) interface{} {
-	return visitor.visitGetExpr(get)
+func (getmethod *GetMethod) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitGetMethodExpr(getmethod)
 }
 
-func (get *Get) String() string {
-	return "Get"}
+func (getmethod *GetMethod) String() string {
+	return "GetMethod"
+}
 
+type GetField struct {
+	object Expr
+	name   *scanner.Token
+}
+
+func NewGetField(object Expr, name *scanner.Token) Expr {
+	return &GetField{
+		object: object,
+		name:   name,
+	}
+}
+
+func (getfield *GetField) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitGetFieldExpr(getfield)
+}
+
+func (getfield *GetField) String() string {
+	return "GetField"
+}
 
 type Set struct {
 	object Expr
-	name *scanner.Token
-	value Expr
+	name   *scanner.Token
+	value  Expr
 }
 
 func NewSet(object Expr, name *scanner.Token, value Expr) Expr {
 	return &Set{
 		object: object,
-		name: name,
-		value: value,
+		name:   name,
+		value:  value,
 	}
 }
 
@@ -123,8 +149,28 @@ func (set *Set) accept(visitor ExprVisitor) interface{} {
 }
 
 func (set *Set) String() string {
-	return "Set"}
+	return "Set"
+}
 
+type Super struct {
+	keyword *scanner.Token
+	method  *scanner.Token
+}
+
+func NewSuper(keyword *scanner.Token, method *scanner.Token) Expr {
+	return &Super{
+		keyword: keyword,
+		method:  method,
+	}
+}
+
+func (super *Super) accept(visitor ExprVisitor) interface{} {
+	return visitor.visitSuperExpr(super)
+}
+
+func (super *Super) String() string {
+	return "Super"
+}
 
 type This struct {
 	keyword *scanner.Token
@@ -141,8 +187,8 @@ func (this *This) accept(visitor ExprVisitor) interface{} {
 }
 
 func (this *This) String() string {
-	return "This"}
-
+	return "This"
+}
 
 type Grouping struct {
 	expression Expr
@@ -159,8 +205,8 @@ func (grouping *Grouping) accept(visitor ExprVisitor) interface{} {
 }
 
 func (grouping *Grouping) String() string {
-	return "Grouping"}
-
+	return "Grouping"
+}
 
 type Literal struct {
 	value interface{}
@@ -177,20 +223,20 @@ func (literal *Literal) accept(visitor ExprVisitor) interface{} {
 }
 
 func (literal *Literal) String() string {
-	return "Literal"}
-
+	return "Literal"
+}
 
 type Logical struct {
-	left Expr
+	left     Expr
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewLogical(left Expr, operator *scanner.Token, right Expr) Expr {
 	return &Logical{
-		left: left,
+		left:     left,
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -199,18 +245,18 @@ func (logical *Logical) accept(visitor ExprVisitor) interface{} {
 }
 
 func (logical *Logical) String() string {
-	return "Logical"}
-
+	return "Logical"
+}
 
 type Unary struct {
 	operator *scanner.Token
-	right Expr
+	right    Expr
 }
 
 func NewUnary(operator *scanner.Token, right Expr) Expr {
 	return &Unary{
 		operator: operator,
-		right: right,
+		right:    right,
 	}
 }
 
@@ -219,16 +265,18 @@ func (unary *Unary) accept(visitor ExprVisitor) interface{} {
 }
 
 func (unary *Unary) String() string {
-	return "Unary"}
-
+	return "Unary"
+}
 
 type Variable struct {
 	name *scanner.Token
+	t    references.FunctionType
 }
 
-func NewVariable(name *scanner.Token) Expr {
+func NewVariable(name *scanner.Token, t references.FunctionType) Expr {
 	return &Variable{
 		name: name,
+		t:    t,
 	}
 }
 
@@ -237,6 +285,5 @@ func (variable *Variable) accept(visitor ExprVisitor) interface{} {
 }
 
 func (variable *Variable) String() string {
-	return "Variable"}
-
-
+	return "Variable"
+}

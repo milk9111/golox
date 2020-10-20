@@ -17,20 +17,22 @@ func main() {
 		"Assign : name *scanner.Token, value Expr",
 		"Binary : left Expr, operator *scanner.Token, right Expr",
 		"Call : callee Expr, paren *scanner.Token, arguments []Expr",
-		"Get : object Expr, name *scanner.Token",
+		"GetMethod : object Expr, name *scanner.Token",
+		"GetField : object Expr, name *scanner.Token",
 		"Set : object Expr, name *scanner.Token, value Expr",
+		"Super : keyword *scanner.Token, method *scanner.Token",
 		"This : keyword *scanner.Token",
 		"Grouping : expression Expr",
 		"Literal : value interface{}",
 		"Logical : left Expr, operator *scanner.Token, right Expr",
 		"Unary : operator *scanner.Token, right Expr",
-		"Variable : name *scanner.Token",
+		"Variable : name *scanner.Token, t references.FunctionType",
 	})
 
 	defineAst(os.Args[1], "statement.go", "Stmt", []string{
 		"Block : statements []Stmt, isLoopIncrementer bool",
 		"Expression : expression Expr",
-		"Function : name *scanner.Token, params []*scanner.Token, body []Stmt",
+		"Function : name *scanner.Token, params []*scanner.Token, body []Stmt, isStatic bool",
 		"IfCmd : condition Expr, thenBranch Stmt, elseBranch Stmt",
 		"Print : expression Expr",
 		"ReturnCmd : keyword *scanner.Token, value Expr",
@@ -38,7 +40,7 @@ func main() {
 		"WhileLoop : condition Expr, body Stmt",
 		"BreakCmd : keyword *scanner.Token, envDepth int",
 		"ContinueCmd : keyword *scanner.Token, envDepth int",
-		"Class : name *scanner.Token, methods []*Function",
+		"Class : name *scanner.Token, superclass *Variable, methods []*Function, fields []*VarCmd",
 	})
 }
 

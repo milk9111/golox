@@ -9,6 +9,7 @@ import (
 var keywords = map[string]references.TokenType{
 	"and":      references.And,
 	"new":      references.New,
+	"static":   references.Static,
 	"class":    references.Class,
 	"else":     references.Else,
 	"false":    references.False,

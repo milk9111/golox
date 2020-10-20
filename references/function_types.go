@@ -8,6 +8,7 @@ const (
 	Method
 	Klass
 	Property
+	Initializer
 )
 
 func GetFunctionTypeName(t FunctionType) string {
@@ -22,6 +23,8 @@ func GetFunctionTypeName(t FunctionType) string {
 		return "Class"
 	case Property:
 		return "Property"
+	case Initializer:
+		return "Initializer"
 	}
 
 	return "Variable"

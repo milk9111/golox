@@ -8,6 +8,7 @@ import (
 )
 
 var declaredClasses map[string]bool = map[string]bool{}
+var staticContext bool = false
 
 type AstParser struct {
 	Tokens  []*scanner.Token
@@ -54,11 +55,24 @@ func (parser *AstParser) declaration() Stmt {
 
 func (parser *AstParser) classDeclaration() Stmt {
 	name := parser.consume(references.Identifier, "Expect class name.")
+
+	var superclass *Variable
+	if parser.match(references.Less) {
+		parser.consume(references.Identifier, "Expect superclass name.")
+		superclass = NewVariable(parser.previous(), references.Klass).(*Variable)
+	}
+
 	parser.consume(references.LeftBrace, "Expect '{' before class body.")
 
 	var methods []*Function
+	var fields []*VarCmd
 	for !parser.check(references.RightBrace) && !parser.isAtEnd() {
-		methods = append(methods, parser.function("method").(*Function))
+		method := parser.function("method")
+		if method == nil {
+			fields = append(fields, parser.varDeclaration().(*VarCmd))
+		} else {
+			methods = append(methods, method.(*Function))
+		}
 	}
 
 	parser.consume(references.RightBrace, "Expect '}' after class body.")
@@ -69,11 +83,22 @@ func (parser *AstParser) classDeclaration() Stmt {
 
 	declaredClasses[name.Lexeme] = true
 
-	return NewClass(name, methods)
+	return NewClass(name, superclass, methods, fields)
 }
 
 func (parser *AstParser) function(kind string) Stmt {
+	isStatic := false
+	if parser.peek().Type == references.Static {
+		isStatic = true
+		parser.consume(references.Static, "Expect static declaration for static method.")
+	}
+
 	name := parser.consume(references.Identifier, fmt.Sprintf("Expect %s name.", kind))
+	if parser.peek().Type == references.Equal {
+		parser.rewind()
+		return nil
+	}
+
 	parser.consume(references.LeftParen, fmt.Sprintf("Expect '(' after %s name", kind))
 
 	var params []*scanner.Token
@@ -89,9 +114,13 @@ func (parser *AstParser) function(kind string) Stmt {
 
 	parser.consume(references.RightParen, "Expect ')' after parameters.")
 	parser.consume(references.LeftBrace, fmt.Sprintf("Expect '{' before %s body.", kind))
-	body := parser.block()
 
-	return NewFunction(name, params, body)
+	ctx := staticContext
+	staticContext = isStatic
+	body := parser.block()
+	staticContext = ctx
+
+	return NewFunction(name, params, body, isStatic)
 }
 
 func (parser *AstParser) varDeclaration() Stmt {
@@ -284,7 +313,9 @@ func (parser *AstParser) assignment() Expr {
 
 		if v, ok := expr.(*Variable); ok {
 			return NewAssign(v.name, value)
-		} else if val, ok := expr.(*Get); ok {
+		} else if val, ok := expr.(*GetMethod); ok {
+			return NewSet(val.object, val.name, value)
+		} else if val, ok := expr.(*GetField); ok {
 			return NewSet(val.object, val.name, value)
 		}
 
@@ -447,6 +478,8 @@ func (parser *AstParser) call() Expr {
 
 				if _, ok := declaredClasses[prev.Lexeme]; !ok {
 					throwError(prev, fmt.Sprintf("Undefined class '%s'.", prev.Lexeme))
+				} else {
+					expr.(*Variable).t = references.Klass
 				}
 			} else {
 				if _, ok := declaredClasses[prev.Lexeme]; ok {
@@ -456,7 +489,11 @@ func (parser *AstParser) call() Expr {
 			expr = parser.finishCall(expr)
 		} else if parser.match(references.Dot) {
 			name := parser.consume(references.Identifier, "Expect property name after '.'.")
-			expr = NewGet(expr, name)
+			if parser.peek().Type == references.LeftParen {
+				expr = NewGetMethod(expr, name)
+			} else {
+				expr = NewGetField(expr, name)
+			}
 		} else {
 			break
 		}
@@ -497,12 +534,23 @@ func (parser *AstParser) primary() Expr {
 		return NewLiteral(parser.previous().Literal)
 	}
 
+	if parser.match(references.Super) {
+		keyword := parser.previous()
+		parser.consume(references.Dot, "Expect '.' after 'super'.")
+		method := parser.consume(references.Identifier, "Expect superclass method name.")
+		return NewSuper(keyword, method)
+	}
+
 	if parser.match(references.This) {
+		if staticContext {
+			throwError(parser.peek(), "Can't access 'this' in a static context.")
+		}
+
 		return NewThis(parser.previous())
 	}
 
 	if parser.match(references.Identifier) {
-		return NewVariable(parser.previous())
+		return NewVariable(parser.previous(), references.None)
 	}
 
 	if parser.match(references.LeftParen) {
@@ -592,6 +640,10 @@ func (parser *AstParser) peek() *scanner.Token {
 
 func (parser *AstParser) previous() *scanner.Token {
 	return parser.Tokens[parser.Current-1]
+}
+
+func (parser *AstParser) rewind() {
+	parser.Current--
 }
 
 func (parser *AstParser) previousIndex(index int) *scanner.Token {

@@ -6,14 +6,18 @@ import (
 )
 
 type LoxFunction struct {
-	declaration *Function
-	closure     *Environment
+	declaration   *Function
+	closure       *Environment
+	isInitializer bool
+	isStatic      bool
 }
 
-func NewLoxFunction(declaration *Function, closure *Environment) *LoxFunction {
+func NewLoxFunction(declaration *Function, closure *Environment, isInit bool, isStatic bool) *LoxFunction {
 	return &LoxFunction{
-		declaration: declaration,
-		closure:     closure,
+		declaration:   declaration,
+		closure:       closure,
+		isInitializer: isInit,
+		isStatic:      isStatic,
 	}
 }
 
@@ -24,7 +28,7 @@ func (fun *LoxFunction) name() string {
 func (fun *LoxFunction) bind(instance *LoxInstance) *LoxFunction {
 	env := NewEnvironment(fun.closure)
 	env.define("this", instance)
-	return NewLoxFunction(fun.declaration, env)
+	return NewLoxFunction(fun.declaration, env, fun.isInitializer, fun.isStatic)
 }
 
 func (fun *LoxFunction) call(interpreter *Interpreter, arguments []interface{}) interface{} {
@@ -40,7 +44,15 @@ func (fun *LoxFunction) call(interpreter *Interpreter, arguments []interface{}) 
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				resp = r
+				if err, ok := r.(error); ok {
+					throwRuntimeError(fun.declaration.name, err.Error())
+				}
+
+				if fun.isInitializer {
+					resp = fun.closure.getAt(0, "this")
+				} else {
+					resp = r
+				}
 			}
 		}()
 
@@ -48,6 +60,11 @@ func (fun *LoxFunction) call(interpreter *Interpreter, arguments []interface{}) 
 	}()
 
 	interpreter.env = previous
+
+	if fun.isInitializer {
+		resp = fun.closure.getAt(0, "this")
+	}
+
 	return resp
 }
 

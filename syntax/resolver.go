@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"fmt"
+	"golox/loxerror"
 	"golox/references"
 	"golox/scanner"
 )
@@ -29,7 +30,15 @@ func NewResolver(interpreter *Interpreter) *Resolver {
 
 func (resolver *Resolver) Resolve(stmts []Stmt) {
 	defer func() {
-		recover()
+		if r := recover(); r != nil {
+			if !loxerror.HadError() && !loxerror.HadRuntimeError() {
+				if err, ok := r.(error); ok {
+					fmt.Printf("Failed to resolve program: %s\n", err.Error())
+				} else {
+					fmt.Println("Failed to resolve program.")
+				}
+			}
+		}
 	}()
 
 	resolver.beginScope()
@@ -55,7 +64,7 @@ func (resolver *Resolver) visitVarCmdStmt(stmt *VarCmd) interface{} {
 }
 
 func (resolver *Resolver) visitVariableExpr(expr *Variable) interface{} {
-	if !resolver.scopes.IsEmpty() && !resolver.isDefined(expr.name.Lexeme) {
+	if !resolver.scopes.IsEmpty() && !resolver.isDefined(expr.name.Lexeme, expr.t) {
 		throwError(expr.name, fmt.Sprintf("Can't read local variable '%s' in its own initializer.", expr.name.Lexeme))
 	}
 
@@ -72,11 +81,11 @@ func (resolver *Resolver) visitThisExpr(expr *This) interface{} {
 	return nil
 }
 
-func (resolver *Resolver) isDefined(lexeme string) bool {
+func (resolver *Resolver) isDefined(lexeme string, t references.FunctionType) bool {
 	for i := resolver.scopes.length - 1; i >= 0; i-- {
-		isDefined, ok := resolver.scopes.Get(i).(map[string]bool)[lexeme]
+		data, ok := resolver.scopes.Get(i).(map[string]*VariableData)[buildKey(lexeme, t)]
 		if ok {
-			return isDefined
+			return data.defined
 		}
 	}
 
@@ -125,23 +134,62 @@ func (resolver *Resolver) visitClassStmt(stmt *Class) interface{} {
 	resolver.declare(stmt.name, references.Klass)
 	resolver.define(stmt.name, references.Klass)
 
+	if stmt.superclass != nil && stmt.name.Lexeme == stmt.superclass.name.Lexeme {
+		throwError(stmt.superclass.name, "A class can't inherit from itself.")
+	}
+
+	if stmt.superclass != nil {
+		//resolver.beginScope()
+		resolver.scopes.Peek().(map[string]*VariableData)[buildKey("super", references.None)] = &VariableData{variableType: references.Method, defined: true}
+	}
+
+	if stmt.superclass != nil {
+		currentClass = references.SubClass
+		resolver.resolveExpression(stmt.superclass)
+	}
+
 	resolver.beginScope()
-	resolver.scopes.Peek().(map[string]*VariableData)["this"] = &VariableData{
+	resolver.scopes.Peek().(map[string]*VariableData)[buildKey("this", references.None)] = &VariableData{
 		variableType: references.Property,
 		defined:      true,
 	}
 
 	for _, method := range stmt.methods {
-		resolver.resolveFunction(method, references.Method)
+		declaration := references.Method
+		if method.name.Lexeme == "init" {
+			declaration = references.Initializer
+		}
+		resolver.resolveFunction(method, declaration)
 	}
 
 	resolver.endScope()
+
+	if stmt.superclass != nil {
+		//resolver.endScope()
+	}
+
 	currentClass = enclosingClassType
 
 	return nil
 }
 
-func (resolver *Resolver) visitGetExpr(expr *Get) interface{} {
+func (resolver *Resolver) visitSuperExpr(expr *Super) interface{} {
+	if currentClass == references.NoneClass {
+		throwError(expr.keyword, "Can't use 'super' outside of a class.")
+	} else if currentClass != references.SubClass {
+		throwError(expr.keyword, "Can't use 'super' in a class with no superclass.")
+	}
+
+	resolver.resolveLocal(expr, expr.keyword)
+	return nil
+}
+
+func (resolver *Resolver) visitGetMethodExpr(expr *GetMethod) interface{} {
+	resolver.resolveExpression(expr.object)
+	return nil
+}
+
+func (resolver *Resolver) visitGetFieldExpr(expr *GetField) interface{} {
 	resolver.resolveExpression(expr.object)
 	return nil
 }
@@ -170,6 +218,10 @@ func (resolver *Resolver) visitContinueCmdStmt(stmt *ContinueCmd) interface{} {
 func (resolver *Resolver) visitReturnCmdStmt(stmt *ReturnCmd) interface{} {
 	if resolver.currentFunction == references.None {
 		throwError(stmt.keyword, "Can't return from top-level code.")
+	}
+
+	if resolver.currentFunction == references.Initializer {
+		throwError(stmt.keyword, "Can't return a value from an initializer.")
 	}
 
 	if stmt.value != nil {
@@ -237,8 +289,13 @@ func (resolver *Resolver) resolveFunction(stmt *Function, functionType reference
 }
 
 func (resolver *Resolver) resolveLocal(expr Expr, name *scanner.Token) {
+	t := references.None
+	if variable, ok := expr.(*Variable); ok {
+		t = variable.t
+	}
+
 	for i := resolver.scopes.Len() - 1; i >= 0; i-- {
-		if _, ok := resolver.scopes.Get(i).(map[string]bool)[name.Lexeme]; ok {
+		if _, ok := resolver.scopes.Get(i).(map[string]*VariableData)[buildKey(name.Lexeme, t)]; ok {
 			index := resolver.scopes.Len() - 1 - i
 			resolver.interpreter.resolve(expr, &index)
 			return

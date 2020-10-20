@@ -1,9 +1,2 @@
 
-class Apple {
-    this.name = "apple";
-    sayName() {
-        print this.name;
-    }
-}
-
-new Apple().sayName();
+super.test();

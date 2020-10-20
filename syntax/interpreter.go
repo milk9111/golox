@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"fmt"
+	"golox/loxerror"
 	"golox/references"
 	"golox/scanner"
 	"math"
@@ -29,6 +30,13 @@ func NewInterpreter() *Interpreter {
 func (interpreter *Interpreter) Interpret(statements []Stmt) {
 	defer func() {
 		if r := recover(); r != nil {
+			if !loxerror.HadRuntimeError() {
+				if err, ok := r.(error); ok {
+					fmt.Println(err.Error())
+				} else {
+					fmt.Println("Runtime error occurred.")
+				}
+			}
 		}
 	}()
 
@@ -56,7 +64,7 @@ func (interpreter *Interpreter) visitReturnCmdStmt(stmt *ReturnCmd) interface{} 
 }
 
 func (interpreter *Interpreter) visitFunctionStmt(stmt *Function) interface{} {
-	function := NewLoxFunction(stmt, interpreter.env)
+	function := NewLoxFunction(stmt, interpreter.env, false, false)
 	globals.define(stmt.name.Lexeme, function)
 
 	return nil
@@ -126,10 +134,24 @@ func (interpreter *Interpreter) visitIfCmdStmt(stmt *IfCmd) interface{} {
 	return nil
 }
 
-func (interpreter *Interpreter) visitGetExpr(expr *Get) interface{} {
+func (interpreter *Interpreter) visitGetMethodExpr(expr *GetMethod) interface{} {
 	object := interpreter.evaluate(expr.object)
 	if val, ok := object.(*LoxInstance); ok {
-		return val.get(expr.name)
+		return val.getMethod(expr.name)
+	}
+
+	if val, ok := object.(*LoxClass); ok {
+		return val.getStaticMethod(expr.name)
+	}
+
+	throwRuntimeError(expr.name, "Only instances have properties.")
+	return nil
+}
+
+func (interpreter *Interpreter) visitGetFieldExpr(expr *GetField) interface{} {
+	object := interpreter.evaluate(expr.object)
+	if val, ok := object.(*LoxInstance); ok {
+		return val.getField(expr.name)
 	}
 
 	throwRuntimeError(expr.name, "Only instances have properties.")
@@ -204,14 +226,43 @@ func (interpreter *Interpreter) visitVarCmdStmt(stmt *VarCmd) interface{} {
 }
 
 func (interpreter *Interpreter) visitClassStmt(stmt *Class) interface{} {
-	interpreter.env.define(stmt.name.Lexeme, nil)
-
-	methods := map[string]*LoxFunction{}
-	for _, method := range stmt.methods {
-		methods[method.name.Lexeme] = NewLoxFunction(method, interpreter.env)
+	var superclass *LoxClass
+	if stmt.superclass != nil {
+		s := interpreter.evaluate(stmt.superclass)
+		ok := false
+		if superclass, ok = s.(*LoxClass); !ok {
+			throwRuntimeError(stmt.superclass.name, "Superclass must be a class.")
+		}
 	}
 
-	class := NewLoxClass(stmt.name.Lexeme, methods)
+	interpreter.env.define(stmt.name.Lexeme, nil)
+
+	if stmt.superclass != nil {
+		interpreter.env = NewEnvironment(interpreter.env)
+		interpreter.env.define("super", interpreter.env.get(stmt.superclass.name))
+	}
+
+	methods := make(map[string]*LoxFunction)
+	for _, method := range stmt.methods {
+		methods[method.name.Lexeme] = NewLoxFunction(method, interpreter.env, method.name.Lexeme == "init" && !method.isStatic, method.isStatic)
+	}
+
+	fields := make(map[string]interface{})
+	for _, field := range stmt.fields {
+		var value interface{}
+		if field.initializer != nil {
+			value = interpreter.evaluate(field.initializer)
+		}
+
+		fields[field.name.Lexeme] = value
+	}
+
+	class := NewLoxClass(stmt.name.Lexeme, superclass, methods, fields)
+
+	if stmt.superclass != nil {
+		interpreter.env = interpreter.env.enclosing
+	}
+
 	interpreter.env.assign(stmt.name, class)
 	return nil
 }
@@ -325,12 +376,28 @@ func (interpreter *Interpreter) evaluate(expr Expr) interface{} {
 	return expr.accept(interpreter)
 }
 
+func (interpreter *Interpreter) visitSuperExpr(expr *Super) interface{} {
+	distance := locals[expr]
+	superclass := interpreter.env.getAt(*distance, "super").(*LoxClass)
+	object := interpreter.env.getAt(*distance-1, "this").(*LoxInstance)
+
+	method := superclass.findMethod(expr.method.Lexeme)
+	if method == nil {
+		throwRuntimeError(expr.method, fmt.Sprintf("Undefined property '%s'.", expr.method.Lexeme))
+	}
+
+	return method.bind(object)
+}
+
 func (interpreter *Interpreter) visitThisExpr(expr *This) interface{} {
 	return interpreter.lookupVariable(expr.keyword, expr)
 }
 
 func (interpreter *Interpreter) visitCallExpr(expr *Call) interface{} {
 	callee := interpreter.evaluate(expr.callee)
+	if v, ok := callee.(*LoxFunction); ok && v == nil {
+		throwRuntimeError(expr.paren, "Could not find function or method.")
+	}
 
 	var arguments []interface{}
 	for _, arg := range expr.arguments {

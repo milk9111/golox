@@ -62,13 +62,15 @@ type Function struct {
 	name *scanner.Token
 	params []*scanner.Token
 	body []Stmt
+	isStatic bool
 }
 
-func NewFunction(name *scanner.Token, params []*scanner.Token, body []Stmt) Stmt {
+func NewFunction(name *scanner.Token, params []*scanner.Token, body []Stmt, isStatic bool) Stmt {
 	return &Function{
 		name: name,
 		params: params,
 		body: body,
+		isStatic: isStatic,
 	}
 }
 
@@ -222,13 +224,17 @@ func (continuecmd *ContinueCmd) String() string {
 
 type Class struct {
 	name *scanner.Token
+	superclass *Variable
 	methods []*Function
+	fields []*VarCmd
 }
 
-func NewClass(name *scanner.Token, methods []*Function) Stmt {
+func NewClass(name *scanner.Token, superclass *Variable, methods []*Function, fields []*VarCmd) Stmt {
 	return &Class{
 		name: name,
+		superclass: superclass,
 		methods: methods,
+		fields: fields,
 	}
 }
 
